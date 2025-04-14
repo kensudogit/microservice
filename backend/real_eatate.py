@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app)  # CORSを有効にする
 
 # Oracleデータベースの設定
-app.config['SQLALCHEMY_DATABASE_URI'] = 'oracle+cx_oracle://username:password@host:port/?service_name=your_service_name'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'oracle+cx_oracle://gcs:Passw0rd@localhost:1521/?service_name=dbgcs'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -55,6 +55,7 @@ def get_secure_data():
     return jsonify({"message": "認証されたデータにアクセスしました"})
 
 # 物件モデルの定義
+# Propertyクラスは不動産物件を表し、物件の名前、所在地、価格を管理します。
 class Property(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -62,18 +63,21 @@ class Property(db.Model):
     price = db.Column(db.Float, nullable=False)
 
 # 取引先金融機関モデル
+# FinancialInstitutionクラスは取引先金融機関を表し、金融機関の名前と支店を管理します。
 class FinancialInstitution(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     branch = db.Column(db.String(100), nullable=False)
 
 # JV・提携先モデル
+# JVPartnerクラスはジョイントベンチャーや提携先を表し、提携先の名前と提携の種類を管理します。
 class JVPartner(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     partnership_type = db.Column(db.String(100), nullable=False)
 
 # ドキュメントのバージョン管理モデル
+# DocumentVersionクラスはドキュメントのバージョン管理を行い、トランザクションID、ドキュメント名、バージョン番号、内容を管理します。
 class DocumentVersion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     transaction_id = db.Column(db.Integer, nullable=False)
@@ -87,11 +91,13 @@ class DocumentVersion(db.Model):
     )
 
 # データベースの初期化
+# アプリケーションの最初のリクエストの前にデータベースのテーブルを作成します。
 @app.before_first_request
 def create_tables():
     db.create_all()
 
 # 物件情報の取得
+# GETリクエストで物件情報を取得し、ダミーデータを返します。
 @app.route('/api/property', methods=['GET'])
 def get_properties():
     # ダミーデータを返す
@@ -102,6 +108,7 @@ def get_properties():
     return jsonify(properties)
 
 # 物件情報の登録
+# POSTリクエストで新しい物件情報をデータベースに登録します。
 @app.route('/property', methods=['POST'])
 def add_property():
     data = request.json
@@ -111,19 +118,38 @@ def add_property():
     return jsonify({"message": "物件情報を登録しました"})
 
 # 電子契約の処理
+# POSTリクエストで電子契約を処理し、契約データを検証してデータベースに保存します。
 @app.route('/contract', methods=['POST'])
 def handle_contract():
     data = request.json
-    # ここで電子契約の処理を実装
-    return jsonify({"message": "電子契約を処理しました"})
+    # 電子契約のデータを検証
+    if not data or 'contract_id' not in data:
+        return jsonify({"message": "契約データが不完全です"}), 400
+
+    # 契約データをデータベースに保存
+    contract_id = data['contract_id']
+    # ここでデータベースモデルを使用して契約を保存するコードを追加
+    # 例: new_contract = Contract(contract_id=contract_id, parties=parties, terms=terms)
+    # db.session.add(new_contract)
+    # db.session.commit()
+
+    # 契約のデジタル署名を生成（必要に応じて）
+    # 例: signature = sign_data(terms.encode(), 'path/to/private_key.pem')
+
+    # 関係者に通知を送信（必要に応じて）
+    # 例: send_notification(parties, "契約が処理されました")
+
+    return jsonify({"message": "電子契約が正常に処理されました", "contract_id": contract_id})
 
 # 取引先金融機関の取得
+# GETリクエストで取引先金融機関のリストを取得します。
 @app.route('/api/financial_institutions', methods=['GET'])
 def get_financial_institutions():
     institutions = FinancialInstitution.query.all()
     return jsonify([{"id": inst.id, "name": inst.name, "branch": inst.branch} for inst in institutions])
 
 # 取引先金融機関の登録
+# POSTリクエストで新しい取引先金融機関をデータベースに登録します。
 @app.route('/api/financial_institution', methods=['POST'])
 def add_financial_institution():
     data = request.json
@@ -133,12 +159,14 @@ def add_financial_institution():
     return jsonify({"message": "取引先金融機関を登録しました"})
 
 # JV・提携先の取得
+# GETリクエストでJV・提携先のリストを取得します。
 @app.route('/api/jv_partners', methods=['GET'])
 def get_jv_partners():
     partners = JVPartner.query.all()
     return jsonify([{"id": partner.id, "name": partner.name, "partnership_type": partner.partnership_type} for partner in partners])
 
 # JV・提携先の登録
+# POSTリクエストで新しいJV・提携先をデータベースに登録します。
 @app.route('/api/jv_partner', methods=['POST'])
 def add_jv_partner():
     data = request.json
@@ -154,11 +182,15 @@ class TransactionWorkflow(db.Model):
     status = db.Column(db.String(50), nullable=False)
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
+# 取引ワークフローの取得
+# GETリクエストで特定のトランザクションIDに関連するワークフローを取得します。
 @app.route('/api/workflow/<int:transaction_id>', methods=['GET'])
 def get_workflow(transaction_id):
     workflow = TransactionWorkflow.query.filter_by(transaction_id=transaction_id).all()
     return jsonify([{"stage": w.stage, "status": w.status, "updated_at": w.updated_at} for w in workflow])
 
+# 取引ワークフローの更新
+# POSTリクエストで取引ワークフローのステージとステータスを更新します。
 @app.route('/api/workflow', methods=['POST'])
 def update_workflow():
     data = request.json
@@ -185,11 +217,15 @@ class NegotiationRecord(db.Model):
     status = db.Column(db.String(50), nullable=False)
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
+# 交渉記録の取得
+# GETリクエストで特定のケースIDに関連する交渉記録を取得します。
 @app.route('/api/negotiation_records/<int:case_id>', methods=['GET'])
 def get_negotiation_records(case_id):
     records = NegotiationRecord.query.filter_by(case_id=case_id).all()
     return jsonify([{"id": record.id, "details": record.details, "status": record.status, "updated_at": record.updated_at} for record in records])
 
+# 交渉ケースのステータス更新
+# POSTリクエストで交渉ケースのステータスを更新します。
 @app.route('/api/negotiation_case/<int:case_id>/status', methods=['POST'])
 def update_negotiation_case_status(case_id):
     data = request.json
@@ -220,6 +256,8 @@ class BalanceSheet(db.Model):
     equity = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
+# 損益計算書の取得
+# GETリクエストで特定のケースIDに関連する損益計算書を取得します。
 @app.route('/api/income_statement/<int:case_id>', methods=['GET'])
 def get_income_statement(case_id):
     statement = IncomeStatement.query.filter_by(case_id=case_id).first()
@@ -234,6 +272,8 @@ def get_income_statement(case_id):
     else:
         return jsonify({"message": "Income statement not found"}), 404
 
+# 損益計算書の作成
+# POSTリクエストで新しい損益計算書を作成し、データベースに保存します。
 @app.route('/api/income_statement', methods=['POST'])
 def create_income_statement():
     data = request.json
@@ -247,6 +287,8 @@ def create_income_statement():
     db.session.commit()
     return jsonify({"message": "Income statement created successfully"})
 
+# 貸借対照表の取得
+# GETリクエストで最新の貸借対照表を取得します。
 @app.route('/api/balance_sheet', methods=['GET'])
 def get_balance_sheet():
     balance_sheet = BalanceSheet.query.order_by(BalanceSheet.created_at.desc()).first()
@@ -260,6 +302,8 @@ def get_balance_sheet():
     else:
         return jsonify({"message": "Balance sheet not found"}), 404
 
+# 貸借対照表の作成
+# POSTリクエストで新しい貸借対照表を作成し、データベースに保存します。
 @app.route('/api/balance_sheet', methods=['POST'])
 def create_balance_sheet():
     data = request.json
@@ -272,7 +316,8 @@ def create_balance_sheet():
     db.session.commit()
     return jsonify({"message": "Balance sheet created successfully"})
 
-# Generate RSA keys
+# RSA鍵の生成
+# RSA鍵ペアを生成し、秘密鍵と公開鍵をファイルに保存します。
 private_key = rsa.generate_private_key(
     public_exponent=65537,
     key_size=2048
@@ -299,6 +344,8 @@ with open("private_key.pem", "wb") as f:
 with open("public_key.pem", "wb") as f:
     f.write(public_pem)
 
+# データの署名
+# 指定された秘密鍵を使用してデータにデジタル署名を生成します。
 def sign_data(data, private_key_path):
     with open(private_key_path, "rb") as key_file:
         private_key = serialization.load_pem_private_key(
@@ -316,6 +363,8 @@ def sign_data(data, private_key_path):
     )
     return signature
 
+# 署名の検証
+# 指定された公開鍵を使用してデータのデジタル署名を検証します。
 def verify_signature(data, signature, public_key_path):
     with open(public_key_path, "rb") as key_file:
         public_key = serialization.load_pem_public_key(
@@ -336,9 +385,13 @@ def verify_signature(data, signature, public_key_path):
     except Exception as e:
         return False
 
+# タイムスタンプの取得
+# 現在のUTCタイムスタンプをISOフォーマットで返します。
 def get_timestamp():
     return datetime.utcnow().isoformat()
 
+# ドキュメントバージョンの作成
+# POSTリクエストで新しいドキュメントバージョンを作成し、データベースに保存します。
 @app.route('/api/document_version', methods=['POST'])
 def create_document_version():
     data = request.json
@@ -360,6 +413,8 @@ def create_document_version():
     db.session.commit()
     return jsonify({"message": "Document version created successfully", "version_number": next_version_number})
 
+# ドキュメントバージョンの取得
+# GETリクエストで特定のトランザクションIDとドキュメント名に関連するすべてのバージョンを取得します。
 @app.route('/api/document_versions/<int:transaction_id>/<string:document_name>', methods=['GET'])
 def get_document_versions(transaction_id, document_name):
     versions = DocumentVersion.query.filter_by(transaction_id=transaction_id, document_name=document_name).order_by(DocumentVersion.version_number).all()
@@ -370,6 +425,7 @@ def get_document_versions(transaction_id, document_name):
     } for version in versions])
 
 # ドキュメントのアップロード
+# POSTリクエストでドキュメントをアップロードし、サーバーに保存します。
 @app.route('/api/upload_document', methods=['POST'])
 def upload_document():
     if 'file' not in request.files:
@@ -390,6 +446,7 @@ def upload_document():
     return jsonify({"message": "File uploaded successfully", "filename": filename})
 
 # ドキュメントのダウンロード
+# GETリクエストで指定されたファイル名のドキュメントをダウンロードします。
 @app.route('/api/download_document/<filename>', methods=['GET'])
 def download_document(filename):
     try:
@@ -397,6 +454,8 @@ def download_document(filename):
     except FileNotFoundError:
         return jsonify({"message": "File not found"}), 404
 
+# Lambdaハンドラー
+# AWS Lambdaで使用するためのハンドラー関数を定義します。
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Your code here
     return {
@@ -404,5 +463,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         'body': 'Hello from Lambda!'
     }
 
+# アプリケーションの起動
+# Flaskアプリケーションをデバッグモードで起動します。
 if __name__ == '__main__':
     app.run(debug=True)
